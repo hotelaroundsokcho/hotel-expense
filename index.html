@@ -25,6 +25,7 @@ header p{margin:4px 0 0;font-size:12px;opacity:.85;}
 
 .dropzone{border:2px dashed var(--border);border-radius:10px;padding:36px 20px;text-align:center;color:var(--muted);cursor:pointer;transition:.15s;}
 .dropzone.drag{border-color:var(--accent);background:var(--accent-light);color:var(--accent);}
+.dropzone:focus,.dropzone:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-color:var(--accent);}
 .dropzone small{display:block;margin-top:6px;font-size:12px;}
 #fileInput{display:none;}
 
@@ -121,9 +122,9 @@ a.link{color:var(--accent);}
 
 <div class="card">
 <h2>1. 증빙 등록</h2>
-<div class="dropzone" id="dropzone">
+<div class="dropzone" id="dropzone" tabindex="0">
 📎 이미지 / PDF / 엑셀 파일을 드래그하거나 클릭하여 선택<br>
-<small>이미지는 여기에 붙여넣기(Ctrl+V)도 가능합니다</small>
+<small>클릭해 이 영역에 커서를 놓은 뒤 Ctrl+V로 이미지를 붙여넣을 수 있습니다</small>
 <input type="file" id="fileInput" accept="image/*,.pdf,.xlsx,.xls">
 </div>
 <div id="previewBox" style="display:none;" class="preview">
@@ -373,7 +374,10 @@ document.getElementById('vendorList').innerHTML = res.vendors.map(function(v){re
 
 /** ---------- 드래그앤드랍 / 붙여넣기 ---------- */
 const dz = document.getElementById('dropzone');
-dz.addEventListener('click', function(){ document.getElementById('fileInput').click(); });
+dz.addEventListener('click', function(){
+dz.focus();
+document.getElementById('fileInput').click();
+});
 dz.addEventListener('dragover', function(e){ e.preventDefault(); dz.classList.add('drag'); });
 dz.addEventListener('dragleave', function(){ dz.classList.remove('drag'); });
 dz.addEventListener('drop', function(e){
@@ -383,8 +387,15 @@ if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
 document.getElementById('fileInput').addEventListener('change', function(e){
 if(e.target.files.length) handleFile(e.target.files[0]);
 });
-document.addEventListener('paste', function(e){
-const items = e.clipboardData.items;
+// 파일 탐색기 창이 닫히면(선택/취소 모두) 포커스를 dropzone으로 되돌려
+// 곧바로 이어서 Ctrl+V 붙여넣기가 가능하게 함
+document.getElementById('fileInput').addEventListener('blur', function(){ dz.focus(); });
+// paste 리스너는 dropzone 요소 자체에 부여(document 전역 X).
+// dropzone이 tabindex="0"으로 포커스를 받을 수 있어야만 브라우저가
+// 이 영역으로 paste 이벤트를 보내주므로, "클릭 → 커서 표시 → Ctrl+V" 흐름과 맞음
+dz.addEventListener('paste', function(e){
+const items = e.clipboardData ? e.clipboardData.items : null;
+if(!items) return;
 for(let i=0;i<items.length;i++){
 if(items[i].type.indexOf('image/') === 0){
 handleFile(items[i].getAsFile());
