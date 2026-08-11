@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>호텔어라운드 속초 - 월별 경비관리</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+--bg:#f6f7f9; --card:#ffffff; --border:#e2e5ea; --text:#1a1d24; --muted:#6b7280;
+--accent:#2b4c7e; --accent-light:#eaf0f9; --danger:#c0392b; --warn:#b9770e; --ok:#1e8449;
+}
+*{box-sizing:border-box;}
+body{margin:0;font-family:'Noto Sans KR',-apple-system,sans-serif;background:var(--bg);color:var(--text);}
+header{background:var(--accent);color:#fff;padding:16px 24px;}
+header h1{margin:0;font-size:18px;font-weight:700;}
+header p{margin:4px 0 0;font-size:12px;opacity:.85;}
+.wrap{max-width:1100px;margin:0 auto;padding:20px;}
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:20px;}
+.card h2{font-size:15px;margin:0 0 14px;color:var(--accent);}
+#pinGate{max-width:360px;margin:80px auto;text-align:center;}
+#pinGate input{width:100%;padding:12px;font-size:16px;border:1px solid var(--border);border-radius:8px;margin-bottom:10px;text-align:center;letter-spacing:4px;}
+#pinGate button{width:100%;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;}
+#app{display:none;}
+
+.dropzone{border:2px dashed var(--border);border-radius:10px;padding:36px 20px;text-align:center;color:var(--muted);cursor:pointer;transition:.15s;}
+.dropzone.drag{border-color:var(--accent);background:var(--accent-light);color:var(--accent);}
+.dropzone small{display:block;margin-top:6px;font-size:12px;}
+#fileInput{display:none;}
+
+.preview{display:flex;gap:12px;align-items:center;margin-top:14px;padding:10px;background:var(--bg);border-radius:8px;}
+.preview img{width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--border);}
+.preview .name{font-size:13px;font-weight:600;}
+.preview .status{font-size:12px;color:var(--muted);}
+
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;}
+.grid .full{grid-column:1/-1;}
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;}
+input,select,textarea{width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-family:inherit;}
+textarea{resize:vertical;min-height:40px;}
+
+.btn{padding:10px 18px;border:none;border-radius:7px;font-size:14px;font-weight:600;cursor:pointer;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-secondary{background:var(--bg);color:var(--text);border:1px solid var(--border);}
+.btn:disabled{opacity:.5;cursor:not-allowed;}
+.actions{display:flex;gap:8px;margin-top:16px;justify-content:flex-end;}
+
+.msg{padding:10px 12px;border-radius:7px;font-size:13px;margin-top:12px;}
+.msg.ok{background:#eafaf1;color:var(--ok);}
+.msg.err{background:#fdedec;color:var(--danger);}
+.msg.warn{background:#fef5e7;color:var(--warn);}
+
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px;}
+.toolbar select,.toolbar input{width:auto;}
+.seg{display:flex;border:1px solid var(--border);border-radius:7px;overflow:hidden;}
+.seg button{border:none;background:#fff;padding:8px 14px;font-size:13px;cursor:pointer;color:var(--muted);}
+.seg button.active{background:var(--accent);color:#fff;}
+
+.summary{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;}
+.stat{background:var(--accent-light);border-radius:8px;padding:12px 16px;min-width:140px;}
+.stat .num{font-size:20px;font-weight:700;color:var(--accent);}
+.stat .label{font-size:12px;color:var(--muted);}
+
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th,td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap;}
+th{background:var(--bg);color:var(--muted);font-weight:600;position:sticky;top:0;}
+tr.cancelled{opacity:.4;text-decoration:line-through;}
+.tag{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;}
+.tag-low{background:#eafaf1;color:var(--ok);}
+.tag-mid{background:#fef5e7;color:var(--warn);}
+.tag-high{background:#fdedec;color:var(--danger);}
+.table-wrap{overflow-x:auto;max-height:520px;overflow-y:auto;}
+a.link{color:var(--accent);}
+.cancel-btn{background:none;border:none;color:var(--danger);cursor:pointer;font-size:12px;text-decoration:underline;}
+</style>
+</head>
+<body>
+
+<div id="pinGate">
+<h2>🔒 호텔어라운드 속초 경비관리</h2>
+<input type="password" id="pinInput" placeholder="PIN 입력" maxlength="10">
+<button class="btn btn-primary" onclick="tryLogin()">입장</button>
+<div id="pinMsg" class="msg err" style="display:none;"></div>
+</div>
+
+<div id="app">
+<header>
+<h1>호텔어라운드 속초 · 월별 경비관리</h1>
+<p id="userLabel"></p>
+</header>
+
+<div class="wrap">
+
+<div class="card">
+<h2>1. 증빙 등록</h2>
+<div class="dropzone" id="dropzone">
+📎 이미지 / PDF / 엑셀 파일을 드래그하거나 클릭하여 선택<br>
+<small>이미지는 여기에 붙여넣기(Ctrl+V)도 가능합니다</small>
+<input type="file" id="fileInput" accept="image/*,.pdf,.xlsx,.xls">
+</div>
+<div id="previewBox" style="display:none;" class="preview">
+<img id="previewImg" style="display:none;">
+<div>
+<div class="name" id="previewName"></div>
+<div class="status" id="previewStatus"></div>
+</div>
+</div>
+
+<div class="grid">
+<div><label>증빙일 *</label><input type="date" id="f_증빙일"></div>
+<div><label>결제일 *</label><input type="date" id="f_결제일"></div>
+<div><label>계정과목(대) *</label><select id="f_계정과목대"></select></div>
+<div><label>계정과목(소)</label><select id="f_계정과목소"></select></div>
+<div><label>거래처 *</label><input type="text" id="f_거래처" list="vendorList"><datalist id="vendorList"></datalist></div>
+<div><label>증빙유형 *</label>
+<select id="f_증빙유형">
+<option>세금계산서</option><option>카드전표</option><option>현금영수증</option><option>간이영수증</option><option>무증빙</option>
+</select>
+</div>
+<div><label>공급가액</label><input type="number" id="f_공급가액" placeholder="0"></div>
+<div><label>부가세</label><input type="number" id="f_부가세" placeholder="0"></div>
+<div><label>합계 *</label><input type="number" id="f_합계" placeholder="0"></div>
+<div><label>결제수단 *</label>
+<select id="f_결제수단"><option>법인카드</option><option>계좌이체</option><option>현금</option><option>자동이체</option></select>
+</div>
+<div class="full"><label>적요</label><input type="text" id="f_적요"></div>
+<div class="full"><label>비고</label><textarea id="f_비고"></textarea></div>
+</div>
+
+<div class="actions">
+<button class="btn btn-secondary" onclick="resetForm()">초기화</button>
+<button class="btn btn-primary" id="saveBtn" onclick="submitExpense()">등록</button>
+</div>
+<div id="formMsg"></div>
+</div>
+
+<div class="card">
+<h2>2. 월별 조회</h2>
+<div class="toolbar">
+<input type="month" id="monthPicker">
+<div class="seg">
+<button id="basisAccrual" class="active" onclick="setBasis('accrual')">귀속월(증빙일) 기준</button>
+<button id="basisPayment" onclick="setBasis('payment')">결제일 기준</button>
+</div>
+<button class="btn btn-secondary" onclick="loadList()">조회</button>
+<button class="btn btn-primary" onclick="exportExcel()" style="margin-left:auto;">📊 엑셀 다운로드</button>
+</div>
+
+<div class="summary" id="summaryBox"></div>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>지출ID</th><th>증빙일</th><th>결제일</th><th>계정과목</th><th>거래처</th><th>적요</th>
+<th>합계</th><th>결제수단</th><th>승인구분</th><th>증빙</th><th>상태</th><th>등록자</th><th></th>
+</tr></thead>
+<tbody id="tbody"></tbody>
+</table>
+</div>
+</div>
+
+</div>
+</div>
+
+<script>
+const API_URL = 'https://script.google.com/macros/s/AKfycbySieTKmIh3ACpdtvVECx5_1xqMxBrVKK1BU6Mhuf7SyrqE6Usl4O1zUNUI_8sGwq0l/exec';
+let PIN = '';
+let USER = '';
+let selectedFile = null; // {base64, mimeType, name}
+let currentBasis = 'accrual';
+let categoryMap = {};
+let lastRows = [];
+
+function tryLogin(){
+const pin = document.getElementById('pinInput').value.trim();
+const user = prompt('이름을 입력하세요 (등록자로 기록됩니다)');
+if(!user){ return; }
+PIN = pin; USER = user;
+document.getElementById('pinGate').style.display='none';
+document.getElementById('app').style.display='block';
+document.getElementById('userLabel').textContent = user + '님 접속중';
+localStorage.setItem('expense_pin', pin);
+localStorage.setItem('expense_user', user);
+loadMeta();
+const now = new Date();
+document.getElementById('monthPicker').value = now.toISOString().slice(0,7);
+loadList();
+}
+
+window.onload = function(){
+const p = localStorage.getItem('expense_pin');
+const u = localStorage.getItem('expense_user');
+if(p && u){
+document.getElementById('pinInput').value = p;
+PIN = p; USER = u;
+document.getElementById('pinGate').style.display='none';
+document.getElementById('app').style.display='block';
+document.getElementById('userLabel').textContent = u + '님 접속중';
+loadMeta();
+const now = new Date();
+document.getElementById('monthPicker').value = now.toISOString().slice(0,7);
+loadList();
+}
+};
+
+async function callApi(action, payload){
+const body = Object.assign({action, pin: PIN, user: USER}, payload || {});
+const res = await fetch(API_URL, {
+method:'POST',
+headers:{'Content-Type':'text/plain'}, // GAS CORS 회피 - 반드시 text/plain
+body: JSON.stringify(body)
+});
+const json = await res.json();
+if(!json.ok && json.error === 'AUTH_FAILED'){
+alert('PIN이 올바르지 않습니다. 다시 로그인해주세요.');
+localStorage.removeItem('expense_pin');
+location.reload();
+}
+return json;
+}
+
+async function loadMeta(){
+const res = await callApi('meta');
+if(!res.ok) return;
+const catSel = document.getElementById('f_계정과목대');
+const subSel = document.getElementById('f_계정과목소');
+categoryMap = {};
+res.categories.forEach(function(row){
+const [big, small] = row;
+if(!categoryMap[big]) categoryMap[big] = [];
+categoryMap[big].push(small);
+});
+catSel.innerHTML = Object.keys(categoryMap).map(function(k){return '<option>'+k+'</option>';}).join('');
+catSel.onchange = function(){
+subSel.innerHTML = (categoryMap[catSel.value]||[]).map(function(s){return '<option>'+s+'</option>';}).join('');
+};
+catSel.onchange();
+document.getElementById('vendorList').innerHTML = res.vendors.map(function(v){return '<option value="'+v+'">';}).join('');
+}
+
+/** ---------- 드래그앤드랍 / 붙여넣기 ---------- */
+const dz = document.getElementById('dropzone');
+dz.addEventListener('click', function(){ document.getElementById('fileInput').click(); });
+dz.addEventListener('dragover', function(e){ e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', function(){ dz.classList.remove('drag'); });
+dz.addEventListener('drop', function(e){
+e.preventDefault(); dz.classList.remove('drag');
+if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+document.getElementById('fileInput').addEventListener('change', function(e){
+if(e.target.files.length) handleFile(e.target.files[0]);
+});
+document.addEventListener('paste', function(e){
+const items = e.clipboardData.items;
+for(let i=0;i<items.length;i++){
+if(items[i].type.indexOf('image/') === 0){
+handleFile(items[i].getAsFile());
+return;
+}
+}
+});
+
+const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+
+function handleFile(file){
+if(file.size > MAX_SIZE){
+alert('파일 용량이 10MB를 초과합니다. 이미지는 압축 후, PDF는 용량을 줄여 다시 시도해주세요.');
+return;
+}
+const isImage = file.type.indexOf('image/') === 0;
+const process = function(blob){
+const reader = new FileReader();
+reader.onload = function(){
+const base64 = reader.result.split(',')[1];
+selectedFile = { base64: base64, mimeType: blob.type, name: file.name || ('paste.' + (blob.type.split('/')[1]||'bin')) };
+document.getElementById('previewBox').style.display='flex';
+document.getElementById('previewName').textContent = selectedFile.name;
+document.getElementById('previewStatus').textContent = (blob.size/1024).toFixed(0) + 'KB · ' + blob.type;
+if(isImage){
+document.getElementById('previewImg').src = reader.result;
+document.getElementById('previewImg').style.display='block';
+} else {
+document.getElementById('previewImg').style.display='none';
+}
+};
+reader.readAsDataURL(blob);
+};
+
+if(isImage){
+resizeImage(file, 1600, process);
+} else {
+process(file);
+}
+}
+
+function resizeImage(file, maxDim, cb){
+const img = new Image();
+const reader = new FileReader();
+reader.onload = function(e){
+img.onload = function(){
+let w = img.width, h = img.height;
+if(w > maxDim || h > maxDim){
+if(w > h){ h = Math.round(h * maxDim / w); w = maxDim; }
+else { w = Math.round(w * maxDim / h); h = maxDim; }
+}
+const canvas = document.createElement('canvas');
+canvas.width = w; canvas.height = h;
+canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+canvas.toBlob(function(blob){ cb(blob); }, 'image/jpeg', 0.85);
+};
+img.src = e.target.result;
+};
+reader.readAsDataURL(file);
+}
+
+/** ---------- 등록 ---------- */
+async function submitExpense(){
+const get = function(id){ return document.getElementById(id).value; };
+const payload = {
+'증빙일': get('f_증빙일'), '결제일': get('f_결제일'),
+'계정과목대': get('f_계정과목대'), '계정과목소': get('f_계정과목소'),
+'거래처': get('f_거래처'), '적요': get('f_적요'),
+'공급가액': get('f_공급가액'), '부가세': get('f_부가세'), '합계': get('f_합계'),
+'결제수단': get('f_결제수단'), '증빙유형': get('f_증빙유형'), '비고': get('f_비고')
+};
+if(selectedFile){
+payload.fileBase64 = selectedFile.base64;
+payload.mimeType = selectedFile.mimeType;
+payload.fileName = selectedFile.name;
+}
+const btn = document.getElementById('saveBtn');
+btn.disabled = true; btn.textContent = '저장중...';
+const res = await callApi('upload', payload);
+btn.disabled = false; btn.textContent = '등록';
+
+if(!res.ok){
+if(res.error === 'DUPLICATE_FILE'){
+if(confirm(res.detail + '\\n그래도 등록하시겠습니까?')){
+payload.forceUpload = true;
+const retry = await callApi('upload', payload);
+if(retry.ok){ showFormMsg('ok', '등록 완료: ' + retry.expenseId); resetForm(); loadList(); }
+else showFormMsg('err', retry.error);
+}
+return;
+}
+showFormMsg('err', '등록 실패: ' + (res.detail || res.error));
+return;
+}
+let msg = '등록 완료: ' + res.expenseId + ' (승인구분: ' + res.approval + ')';
+showFormMsg(res.warning ? 'warn' : 'ok', res.warning ? msg + ' — ' + res.warning : msg);
+resetForm();
+loadList();
+}
+
+function showFormMsg(type, text){
+const el = document.getElementById('formMsg');
+el.className = 'msg ' + type;
+el.textContent = text;
+el.style.display = 'block';
+}
+
+function resetForm(){
+['f_증빙일','f_결제일','f_거래처','f_적요','f_공급가액','f_부가세','f_합계','f_비고'].forEach(function(id){
+document.getElementById(id).value = '';
+});
+selectedFile = null;
+document.getElementById('previewBox').style.display = 'none';
+document.getElementById('fileInput').value = '';
+}
+
+/** ---------- 월별 조회 ---------- */
+function setBasis(b){
+currentBasis = b;
+document.getElementById('basisAccrual').classList.toggle('active', b==='accrual');
+document.getElementById('basisPayment').classList.toggle('active', b==='payment');
+loadList();
+}
+
+async function loadList(){
+const month = document.getElementById('monthPicker').value;
+const res = await callApi('list', { month: month, basis: currentBasis });
+if(!res.ok){ alert('조회 실패: ' + res.error); return; }
+lastRows = res.rows;
+renderSummary(res.summary);
+renderTable(res.rows);
+}
+
+function renderSummary(s){
+const box = document.getElementById('summaryBox');
+let html = '<div class="stat"><div class="num">' + s.건수 + '건</div><div class="label">유효 지출건수</div></div>';
+html += '<div class="stat"><div class="num">' + s.합계.toLocaleString() + '원</div><div class="label">합계</div></div>';
+Object.keys(s.계정과목별).forEach(function(k){
+html += '<div class="stat"><div class="num">' + s.계정과목별[k].toLocaleString() + '원</div><div class="label">' + k + '</div></div>';
+});
+box.innerHTML = html;
+}
+
+function approvalTag(a){
+if(a.indexOf('서면합의') === 0) return '<span class="tag tag-high">' + a + '</span>';
+if(a.indexOf('48시간') === 0) return '<span class="tag tag-mid">' + a + '</span>';
+return '<span class="tag tag-low">' + a + '</span>';
+}
+
+function renderTable(rows){
+const tbody = document.getElementById('tbody');
+tbody.innerHTML = rows.map(function(r){
+const cancelled = r['상태'] !== '정상';
+return '<tr class="' + (cancelled?'cancelled':'') + '">' +
+'<td>' + r['지출ID'] + '</td>' +
+'<td>' + r['증빙일'] + '</td>' +
+'<td>' + r['결제일'] + '</td>' +
+'<td>' + r['계정과목대'] + (r['계정과목소']?(' / '+r['계정과목소']):'') + '</td>' +
+'<td>' + r['거래처'] + '</td>' +
+'<td>' + (r['적요']||'') + '</td>' +
+'<td>' + Number(r['합계']).toLocaleString() + '원</td>' +
+'<td>' + r['결제수단'] + '</td>' +
+'<td>' + approvalTag(r['승인구분']) + '</td>' +
+'<td>' + (r['증빙URL'] ? '<a class="link" href="'+r['증빙URL']+'" target="_blank">보기</a>' : '-') + '</td>' +
+'<td>' + r['상태'] + '</td>' +
+'<td>' + r['등록자'] + '</td>' +
+'<td>' + (cancelled ? '' : '<button class="cancel-btn" data-cancel-id="'+r['지출ID']+'">취소</button>') + '</td>' +
+'</tr>';
+}).join('');
+}
+
+document.getElementById('tbody').addEventListener('click', function(e){
+const btn = e.target.closest('[data-cancel-id]');
+if(btn) cancelExpense(btn.getAttribute('data-cancel-id'));
+});
+
+async function cancelExpense(id){
+const reason = prompt('취소 사유를 입력하세요 (필수)');
+if(!reason) return;
+const res = await callApi('cancel', { expenseId: id, reason: reason });
+if(res.ok) loadList();
+else alert('취소 실패: ' + res.error);
+}
+
+/** ---------- 엑셀 다운로드 ---------- */
+function exportExcel(){
+if(!lastRows.length){ alert('조회된 데이터가 없습니다.'); return; }
+const cols = ['지출ID','증빙일','결제일','귀속월','계정과목대','계정과목소','거래처','적요',
+'공급가액','부가세','합계','결제수단','증빙유형','승인구분','GOP반영','증빙URL','상태','등록자','등록일시','비고'];
+const data = lastRows.map(function(r){
+const o = {};
+cols.forEach(function(c){ o[c] = r[c]; });
+return o;
+});
+const ws = XLSX.utils.json_to_sheet(data, {header: cols});
+const wb = XLSX.utils.book_new();
+XLSX.utils.book_append_sheet(wb, ws, '지출내역');
+const month = document.getElementById('monthPicker').value || 'all';
+XLSX.writeFile(wb, '호텔어라운드속초_경비_' + month + '_' + currentBasis + '.xlsx');
+}
+</script>
+</body>
+</html>
+</html>
