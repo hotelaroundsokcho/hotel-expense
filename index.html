@@ -25,7 +25,9 @@ header p{margin:4px 0 0;font-size:12px;opacity:.85;}
 
 .dropzone{border:2px dashed var(--border);border-radius:10px;padding:36px 20px;text-align:center;color:var(--muted);cursor:pointer;transition:.15s;}
 .dropzone.drag{border-color:var(--accent);background:var(--accent-light);color:var(--accent);}
-.dropzone:focus,.dropzone:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-color:var(--accent);}
+.dzCursor{display:none;color:var(--accent);font-weight:700;margin-left:2px;animation:dzBlink 1s step-start infinite;}
+.dropzone.focused .dzCursor{display:inline-block;}
+@keyframes dzBlink{50%{opacity:0;}}
 .dropzone small{display:block;margin-top:6px;font-size:12px;}
 #fileInput{display:none;}
 
@@ -61,6 +63,8 @@ header p{margin:4px 0 0;font-size:12px;opacity:.85;}
 .preview img{width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--border);}
 .preview .name{font-size:13px;font-weight:600;}
 .preview .status{font-size:12px;color:var(--muted);}
+.preview .removeFileBtn{margin-left:auto;flex-shrink:0;border:1px solid var(--border);background:#fff;color:var(--muted);border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;}
+.preview .removeFileBtn:hover{border-color:var(--danger);color:var(--danger);}
 
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;}
 .grid .full{grid-column:1/-1;}
@@ -123,7 +127,7 @@ a.link{color:var(--accent);}
 <div class="card">
 <h2>1. 증빙 등록</h2>
 <div class="dropzone" id="dropzone" tabindex="0">
-📎 이미지 / PDF / 엑셀 파일을 드래그하거나 클릭하여 선택<br>
+📎 이미지 / PDF / 엑셀 파일을 드래그하거나 클릭하여 선택<span class="dzCursor" id="dzCursor">|</span><br>
 <small>클릭해 이 영역에 커서를 놓은 뒤 Ctrl+V로 이미지를 붙여넣을 수 있습니다</small>
 <input type="file" id="fileInput" accept="image/*,.pdf,.xlsx,.xls">
 </div>
@@ -133,6 +137,7 @@ a.link{color:var(--accent);}
 <div class="name" id="previewName"></div>
 <div class="status" id="previewStatus"></div>
 </div>
+<button type="button" class="removeFileBtn" onclick="removeAttachedFile()">✕ 제거</button>
 </div>
 <div id="ocrStatus"></div>
 
@@ -378,6 +383,8 @@ dz.addEventListener('click', function(){
 dz.focus();
 document.getElementById('fileInput').click();
 });
+dz.addEventListener('focus', function(){ dz.classList.add('focused'); });
+dz.addEventListener('blur', function(){ dz.classList.remove('focused'); });
 dz.addEventListener('dragover', function(e){ e.preventDefault(); dz.classList.add('drag'); });
 dz.addEventListener('dragleave', function(){ dz.classList.remove('drag'); });
 dz.addEventListener('drop', function(e){
@@ -640,6 +647,23 @@ const el = document.getElementById('formMsg');
 el.className = 'msg ' + type;
 el.textContent = text;
 el.style.display = 'block';
+}
+
+// 미리보기 박스의 ✕ 버튼 전용: 첨부파일만 떼어내고, 이미 입력된 다른 값은 보존한다.
+// 단, OCR이 자동으로 채운 값인데 사용자가 아직 확인/수정하지 않은 것(배지가 남아있는 것)은
+// 지금 제거하는 이 파일에서 나온 값이므로 같이 지운다. 사람이 이미 손댄 값(배지 없음)은 유지.
+function removeAttachedFile(){
+Object.keys(OCR_TARGET_IDS).forEach(function(k){
+const el = document.getElementById(OCR_TARGET_IDS[k]);
+if(el && el.dataset.ocrAuto === '1'){ el.value = ''; }
+});
+ocrClearAll();
+selectedFile = null;
+document.getElementById('previewBox').style.display = 'none';
+document.getElementById('previewImg').style.display = 'none';
+document.getElementById('previewImg').src = '';
+document.getElementById('fileInput').value = '';
+ocrShowStatus('', '');
 }
 
 function resetForm(){
