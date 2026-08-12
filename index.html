@@ -28,6 +28,8 @@ header p{margin:4px 0 0;font-size:12px;opacity:.85;}
 .dzCursor{display:none;color:var(--accent);font-weight:700;margin-left:2px;animation:dzBlink 1s step-start infinite;}
 .dropzone.focused .dzCursor{display:inline-block;}
 @keyframes dzBlink{50%{opacity:0;}}
+.browseBtn{margin-top:12px;border:1px solid var(--border);background:#fff;color:var(--text);border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer;}
+.browseBtn:hover{border-color:var(--accent);color:var(--accent);}
 .dropzone small{display:block;margin-top:6px;font-size:12px;}
 #fileInput{display:none;}
 
@@ -127,8 +129,9 @@ a.link{color:var(--accent);}
 <div class="card">
 <h2>1. 증빙 등록</h2>
 <div class="dropzone" id="dropzone" tabindex="0">
-📎 이미지 / PDF / 엑셀 파일을 드래그하거나 클릭하여 선택<span class="dzCursor" id="dzCursor">|</span><br>
-<small>클릭해 이 영역에 커서를 놓은 뒤 Ctrl+V로 이미지를 붙여넣을 수 있습니다</small>
+📎 이미지 / PDF / 엑셀 파일을 드래그하거나 붙여넣기<span class="dzCursor" id="dzCursor">|</span><br>
+<small>클릭하면 커서가 표시되어 바로 Ctrl+V로 붙여넣을 수 있습니다</small><br>
+<button type="button" id="browseBtn" class="browseBtn">📁 파일 찾기</button>
 <input type="file" id="fileInput" accept="image/*,.pdf,.xlsx,.xls">
 </div>
 <div id="previewBox" style="display:none;" class="preview">
@@ -379,10 +382,11 @@ document.getElementById('vendorList').innerHTML = res.vendors.map(function(v){re
 
 /** ---------- 드래그앤드랍 / 붙여넣기 ---------- */
 const dz = document.getElementById('dropzone');
-dz.addEventListener('click', function(){
-dz.focus();
-document.getElementById('fileInput').click();
-});
+// 박스를 클릭하면 "포커스 + 커서 표시"만 한다.
+// 예전에는 여기서 바로 파일탐색기(fileInput.click())를 열었는데,
+// 그러면 탐색기 창이 화면을 덮어버려 커서 표시가 보이지도 않고
+// Ctrl+V를 바로 이어갈 수 없다는 문제가 있어 분리함.
+dz.addEventListener('click', function(){ dz.focus(); });
 dz.addEventListener('focus', function(){ dz.classList.add('focused'); });
 dz.addEventListener('blur', function(){ dz.classList.remove('focused'); });
 dz.addEventListener('dragover', function(e){ e.preventDefault(); dz.classList.add('drag'); });
@@ -390,6 +394,12 @@ dz.addEventListener('dragleave', function(){ dz.classList.remove('drag'); });
 dz.addEventListener('drop', function(e){
 e.preventDefault(); dz.classList.remove('drag');
 if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+// 파일탐색기를 여는 건 이 버튼 전용 동작으로 분리.
+// stopPropagation으로 위 dz 클릭 핸들러와 중복 실행되지 않게 함(중복돼도 해는 없지만 명확성을 위해).
+document.getElementById('browseBtn').addEventListener('click', function(e){
+e.stopPropagation();
+document.getElementById('fileInput').click();
 });
 document.getElementById('fileInput').addEventListener('change', function(e){
 if(e.target.files.length) handleFile(e.target.files[0]);
