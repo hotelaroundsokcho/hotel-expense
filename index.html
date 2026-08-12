@@ -619,6 +619,13 @@ memo.value = '사업자번호 ' + fields['사업자번호'];
 }
 
 if(filled.length === 0){
+if(res && res.note === 'OCR_FAILED'){
+const errMsg = res.errDebug ? String(res.errDebug) : '(에러 메시지가 전달되지 않았습니다)';
+const escErr = errMsg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+ocrShowStatus('err', '영수증 인식 중 오류가 발생했습니다. 직접 입력해주세요. (증빙 파일은 정상 첨부됐습니다)<br>' +
+'<details style="margin-top:8px;" open><summary style="cursor:pointer;color:var(--muted);font-size:12px;">오류 내용 보기(진단용)</summary>' +
+'<pre style="white-space:pre-wrap;font-size:11px;max-height:200px;overflow:auto;background:#fff;border:1px solid var(--border);border-radius:6px;padding:8px;margin-top:6px;">' + escErr + '</pre></details>');
+} else {
 const raw = (res && res.rawText) ? String(res.rawText) : '';
 if(raw.trim()){
 const esc = raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -627,6 +634,7 @@ ocrShowStatus('', '읽어낼 항목을 찾지 못했습니다. 직접 입력해�
 '<pre style="white-space:pre-wrap;font-size:11px;max-height:200px;overflow:auto;background:#fff;border:1px solid var(--border);border-radius:6px;padding:8px;margin-top:6px;">' + esc + '</pre></details>');
 } else {
 ocrShowStatus('', '읽어낼 항목을 찾지 못했습니다. 직접 입력해주세요. (증빙 파일은 정상 첨부됐습니다. OCR이 텍스트를 전혀 읽지 못했습니다 — 이미지 화질/글씨 크기 문제일 수 있습니다)');
+}
 }
 } else {
 ocrShowStatus('', '노란색 칸 ' + filled.length + '개를 영수증에서 읽어 채웠습니다 — <b>금액을 눈으로 한 번 확인</b>해주세요. 결제일과 계정과목은 직접 선택하셔야 합니다.');
