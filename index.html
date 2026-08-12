@@ -412,13 +412,51 @@ document.getElementById('fileInput').addEventListener('blur', function(){ dz.foc
 // 이 영역으로 paste 이벤트를 보내주므로, "클릭 → 커서 표시 → Ctrl+V" 흐름과 맞음
 dz.addEventListener('paste', function(e){
 const items = e.clipboardData ? e.clipboardData.items : null;
-if(!items) return;
+if(!items || items.length === 0){
+ocrShowStatus('err', '클립보드가 비어있습니다. 이미지를 다시 복사한 뒤 시도해주세요.');
+return;
+}
+
+// 1순위: MIME 타입이 image/*로 명시된 항목 (스크린샷 캡처 등 대부분의 경우)
 for(let i=0;i<items.length;i++){
 if(items[i].type.indexOf('image/') === 0){
 handleFile(items[i].getAsFile());
 return;
 }
 }
+
+// 2순위: 타입 문자열이 비어있거나 예외적이지만 kind가 'file'인 항목
+// (일부 오피스 프로그램에서 복사한 이미지가 여기 해당할 수 있음)
+for(let i=0;i<items.length;i++){
+if(items[i].kind === 'file'){
+const f = items[i].getAsFile();
+if(f){ handleFile(f); return; }
+}
+}
+
+// 3순위: 클립보드에 HTML로 담겨왔고, 그 안에 data: 이미지가 포함된 경우
+// (일부 프로그램은 이미지를 파일이 아니라 HTML의 <img src="data:..."> 형태로 복사함)
+for(let i=0;i<items.length;i++){
+if(items[i].type === 'text/html'){
+items[i].getAsString(function(html){
+const m = html.match(/src=["'](data:image\/[a-zA-Z0-9.+-]+;base64,[^"']+)["']/);
+if(m){
+fetch(m[1]).then(function(r){ return r.blob(); }).then(function(blob){
+const ext = (blob.type.split('/')[1] || 'png').split('+')[0];
+const file = new File([blob], 'paste.' + ext, { type: blob.type });
+handleFile(file);
+});
+} else {
+ocrShowStatus('err', '클립보드에서 이미지를 찾지 못했습니다. 엑셀에서 복사한 이미지는 형식에 따라 인식되지 않을 수 있습니다 — 이미지를 파일로 저장한 뒤 "파일 찾기"로 올려주세요.');
+}
+});
+return;
+}
+}
+
+// 여기까지 왔으면 이미지로 인식 가능한 형식이 전혀 없었던 것
+const types = Array.prototype.map.call(items, function(it){ return it.type || it.kind; }).join(', ') || '없음';
+ocrShowStatus('err', '클립보드에 이미지가 없습니다(감지된 형식: ' + types + '). 엑셀에서 복사한 이미지는 형식에 따라 인식되지 않을 수 있습니다 — 이미지를 파일로 저장한 뒤 "파일 찾기"로 올려주세요.');
 });
 
 const MAX_SIZE = 10 * 1024 * 1024; // 10MB
