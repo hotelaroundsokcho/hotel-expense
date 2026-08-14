@@ -301,12 +301,36 @@ return json;
 }
 
 const CATEGORY_ADD_SENTINEL = '__ADD_NEW__';
+const CATEGORY_DELETE_SENTINEL = '__DELETE__';
+
+let currentBig_ = '';
+let currentSmall_ = '';
 
 /** 계정과목 신규 추가 (대분류는 필수, 소분류는 선택) — 성공 시 서버가 돌려준 최신 목록으로 categoryMap을 즉시 갱신 */
 async function addCategoryToServer_(big, small){
 const res = await callApi('addCategory', { '계정과목대': big, '계정과목소': small || '' });
 if(!res.ok){
 alert('계정과목 추가 실패: ' + (res.error || ''));
+return false;
+}
+categoryMap = {};
+(res.categories || []).forEach(function(row){
+const big2 = row[0], small2 = row[1];
+if(!categoryMap[big2]) categoryMap[big2] = [];
+if(small2) categoryMap[big2].push(small2);
+});
+return true;
+}
+
+/** 계정과목 삭제 — 이미 지출 내역에서 사용 중이면 서버가 거부(IN_USE)한다 (과거 기록 보호) */
+async function deleteCategoryFromServer_(big, small){
+const res = await callApi('deleteCategory', { '계정과목대': big, '계정과목소': small || '' });
+if(!res.ok){
+if(res.error === 'IN_USE'){
+alert('이미 지출 내역에서 사용 중인 계정과목이라 삭제할 수 없습니다.\n(과거 기록 보호를 위한 안전장치입니다)');
+} else {
+alert('계정과목 삭제 실패: ' + (res.error || ''));
+}
 return false;
 }
 categoryMap = {};
@@ -333,16 +357,26 @@ if(small) categoryMap[big].push(small);
 function buildBigOptions(){
 let html = Object.keys(categoryMap).map(function(k){return '<option value="'+k+'">'+k+'</option>';}).join('');
 html += '<option value="' + CATEGORY_ADD_SENTINEL + '">＋ 새 계정과목(대) 추가</option>';
+if(currentBig_ && categoryMap[currentBig_] !== undefined){
+html += '<option value="' + CATEGORY_DELETE_SENTINEL + '">－ "' + currentBig_ + '" 삭제</option>';
+}
 return html;
 }
 function buildSmallOptions(big){
 let html = (categoryMap[big]||[]).map(function(s){return '<option value="'+s+'">'+s+'</option>';}).join('');
 html += '<option value="" disabled>──────</option>';
 html += '<option value="' + CATEGORY_ADD_SENTINEL + '">＋ 새 계정과목(소) 추가</option>';
+if(currentSmall_ && (categoryMap[big]||[]).indexOf(currentSmall_) !== -1){
+html += '<option value="' + CATEGORY_DELETE_SENTINEL + '">－ "' + currentSmall_ + '" 삭제</option>';
+}
 return html;
 }
 
+let nextBig = (preselect && preselect.big && categoryMap[preselect.big] !== undefined) ? preselect.big : (Object.keys(categoryMap)[0] || '');
+currentBig_ = nextBig;
 catSel.innerHTML = buildBigOptions();
+catSel.value = nextBig;
+
 catSel.onchange = async function(){
 if(catSel.value === CATEGORY_ADD_SENTINEL){
 const name = window.prompt('새로 추가할 계정과목(대분류) 이름을 입력하세요.');
@@ -350,8 +384,22 @@ if(name && name.trim()){
 const ok = await addCategoryToServer_(name.trim(), '');
 if(ok){ loadMeta({ big: name.trim(), small: '' }); return; }
 }
-catSel.value = Object.keys(categoryMap)[0] || '';
+catSel.value = currentBig_ || Object.keys(categoryMap)[0] || '';
+subSel.innerHTML = buildSmallOptions(catSel.value);
+return;
 }
+if(catSel.value === CATEGORY_DELETE_SENTINEL){
+const target = currentBig_;
+if(target && window.confirm('계정과목(대) "' + target + '"를 삭제하시겠습니까?\n(하위 소분류가 있으면 함께 삭제되며, 이미 등록된 지출 내역에는 영향이 없습니다.)')){
+const ok = await deleteCategoryFromServer_(target, '');
+if(ok){ loadMeta({ big: Object.keys(categoryMap)[0] || '', small: '' }); return; }
+}
+catSel.value = currentBig_ || Object.keys(categoryMap)[0] || '';
+subSel.innerHTML = buildSmallOptions(catSel.value);
+return;
+}
+currentBig_ = catSel.value;
+currentSmall_ = (categoryMap[catSel.value]||[])[0] || '';
 subSel.innerHTML = buildSmallOptions(catSel.value);
 };
 
@@ -363,22 +411,30 @@ if(name && name.trim()){
 const ok = await addCategoryToServer_(big, name.trim());
 if(ok){ loadMeta({ big: big, small: name.trim() }); return; }
 }
-subSel.value = (categoryMap[catSel.value]||[])[0] || '';
+subSel.value = currentSmall_ || (categoryMap[catSel.value]||[])[0] || '';
+return;
 }
+if(subSel.value === CATEGORY_DELETE_SENTINEL){
+const big = catSel.value;
+const target = currentSmall_;
+if(target && window.confirm('계정과목(소) "' + target + '"를 삭제하시겠습니까?\n(이미 등록된 지출 내역에는 영향이 없습니다.)')){
+const ok = await deleteCategoryFromServer_(big, target);
+if(ok){ loadMeta({ big: big, small: (categoryMap[big]||[])[0] || '' }); return; }
+}
+subSel.value = currentSmall_ || (categoryMap[catSel.value]||[])[0] || '';
+return;
+}
+currentSmall_ = subSel.value;
 };
 
-if(preselect && preselect.big && categoryMap[preselect.big] !== undefined){
-catSel.value = preselect.big;
-} else if(Object.keys(categoryMap).length){
-catSel.value = Object.keys(categoryMap)[0];
-}
-subSel.innerHTML = buildSmallOptions(catSel.value);
-if(preselect && preselect.small){
-subSel.value = preselect.small;
-}
+let nextSmall = (preselect && preselect.small) ? preselect.small : ((categoryMap[nextBig]||[])[0] || '');
+currentSmall_ = nextSmall;
+subSel.innerHTML = buildSmallOptions(nextBig);
+subSel.value = nextSmall;
 
 document.getElementById('vendorList').innerHTML = res.vendors.map(function(v){return '<option value="'+v+'">';}).join('');
 }
+
 
 /** ---------- 드래그앤드랍 / 붙여넣기 ---------- */
 const dz = document.getElementById('dropzone');
